@@ -8,8 +8,8 @@ import { submitToGoogleSheets, SubmissionPayload } from '../services/api';
 interface HomeProps { user: User; }
 
 // School coordinates for SMPN 1 Padarincang (Updated)
-const SCHOOL_LAT = -6.114196248039071;
-const SCHOOL_LNG = 106.2276108127061;
+const SCHOOL_LAT = -6.207676212766887;
+const SCHOOL_LNG = 105.97295421490682;
 const ALLOWED_RADIUS_METERS = 50; 
 
 const Home: React.FC<HomeProps> = ({ user }) => {
