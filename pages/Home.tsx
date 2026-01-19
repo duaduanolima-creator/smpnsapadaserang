@@ -522,15 +522,33 @@ const Home: React.FC<HomeProps> = ({ user }) => {
           <div className="absolute top-0 right-0 p-4 opacity-10">
             <LogOut size={100} className="rotate-180" />
           </div>
-          <h2 className="text-slate-400 text-sm font-medium">Halo, selamat pagi!</h2>
-          <p className="text-xl font-bold text-white mt-1 truncate">{user.name}</p>
-          <div className="flex flex-wrap items-center gap-2 mt-3">
-            <div className="flex items-center gap-2 text-indigo-400 bg-indigo-500/10 px-3 py-1 rounded-full border border-indigo-500/20">
-                <span className="w-2 h-2 rounded-full bg-indigo-400 animate-pulse"></span>
-                <span className="text-[10px] font-semibold uppercase">{user.role}</span>
+          
+          <div className="flex items-center gap-4 relative z-10">
+            <div className="flex-1 min-w-0">
+                <h2 className="text-slate-400 text-sm font-medium">Halo, selamat pagi!</h2>
+                <p className="text-xl font-bold text-white mt-1 truncate">{user.name}</p>
+                <div className="flex flex-wrap items-center gap-2 mt-3">
+                    <div className="flex items-center gap-2 text-indigo-400 bg-indigo-500/10 px-3 py-1 rounded-full border border-indigo-500/20">
+                        <span className="w-2 h-2 rounded-full bg-indigo-400 animate-pulse"></span>
+                        <span className="text-[10px] font-semibold uppercase">{user.role}</span>
+                    </div>
+                    <div className="text-[10px] font-mono text-slate-500 bg-slate-800/50 px-3 py-1 rounded-full border border-white/5">
+                        NIP: {user.nip}
+                    </div>
+                </div>
             </div>
-            <div className="text-[10px] font-mono text-slate-500 bg-slate-800/50 px-3 py-1 rounded-full border border-white/5">
-                NIP: {user.nip}
+            
+            <div className="shrink-0">
+                <div className="w-16 h-16 rounded-full p-1 bg-gradient-to-tr from-indigo-500 to-purple-500 shadow-lg shadow-indigo-500/20">
+                    <img 
+                      src={user.avatar} 
+                      alt={user.name}
+                      className="w-full h-full rounded-full object-cover border-2 border-slate-950 bg-slate-800"
+                      onError={(e) => {
+                        e.currentTarget.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(user.name)}&background=random&size=128`;
+                      }}
+                    />
+                </div>
             </div>
           </div>
         </div>
