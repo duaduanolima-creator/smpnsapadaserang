@@ -3,7 +3,7 @@ export interface User {
   id: string;
   name: string;
   nip: string;
-  role: 'Guru' | 'Admin';
+  role: string;
   avatar: string;
   school: string;
   employmentStatus: string;

@@ -46,7 +46,7 @@ const App: React.FC = () => {
             path="/" 
             element={
               auth.isAuthenticated && auth.user ? (
-                auth.user.role === 'Admin' ? <AdminDashboard user={auth.user} /> : <Home user={auth.user} />
+                auth.user.role.toLowerCase().includes('admin') ? <AdminDashboard user={auth.user} /> : <Home user={auth.user} />
               ) : (
                 <Navigate to="/login" />
               )

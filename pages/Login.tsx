@@ -57,7 +57,8 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
             id: foundAccount.NIP || Math.random().toString(36).substr(2, 9),
             name: foundAccount.Nama || foundAccount.Username,
             nip: foundAccount.NIP || '-',
-            role: loginMode,
+            // SEKARANG: Mengambil role asli dari Sheet (misal: STAF TU, OB, dll)
+            role: foundAccount.Role || loginMode,
             avatar: foundAccount.Avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(foundAccount.Nama || 'User')}&background=random`,
             school: foundAccount.Sekolah || 'SMPN 1 Padarincang',
             employmentStatus: foundAccount.Status || '-'
