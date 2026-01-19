@@ -7,7 +7,7 @@ import {
   Users, BookOpen, Clock, CheckCircle, XCircle, Search, 
   IdCard, GraduationCap, ArrowRight, UserCheck, UserMinus, 
   MapPin, X, Calendar, Phone, MessageSquare, AlertCircle, RefreshCw,
-  BarChart3, Trophy
+  BarChart3, Trophy, AlertTriangle
 } from 'lucide-react';
 
 interface AdminDashboardProps {
@@ -25,6 +25,8 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user }) => {
   const [lastUpdated, setLastUpdated] = useState<Date>(new Date());
   const [currentTime, setCurrentTime] = useState<Date>(new Date());
 
+  const LATE_THRESHOLD = "07:15";
+
   const getInitials = (name: string) => {
     const n = name.replace(/[^a-zA-Z ]/g, "").trim();
     const parts = n.split(' ').filter(p => p.length > 0);
@@ -36,29 +38,23 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user }) => {
   const loadData = async () => {
     setIsLoading(true);
     try {
-      // 1. Ambil semua user (Guru)
       const allUsers = await fetchUsersFromSheet();
-      const teachers = allUsers.filter(u => u.Role !== 'Admin' && u.Role !== 'Superadmin');
+      const teachers = allUsers.filter(u => !u.Role.toLowerCase().includes('admin'));
       
-      // 2. Ambil log hari ini dari GAS
       const dashboardData = await fetchDashboardData();
       
       if (dashboardData) {
         const { attendance, teaching, leaves } = dashboardData;
 
-        // Helper: Format Time ISO String or HH:mm to HH:mm
         const formatTime = (val: string) => {
            if (!val) return '--:--';
-           // Jika format sudah HH:mm atau HH:mm:ss, ambil 5 karakter pertama
            if (typeof val === 'string' && val.match(/^\d{1,2}:\d{2}/)) {
               return val.substring(0, 5);
            }
-           // Jika formatnya ISO Date (mengandung T atau -)
            if (val.includes('T') || val.includes('-')) {
              try {
                 const d = new Date(val);
                 if (isNaN(d.getTime())) return val;
-                // Format ke HH:mm
                 return d.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', hour12: false }).replace('.', ':');
              } catch {
                 return val;
@@ -67,7 +63,6 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user }) => {
            return val;
         };
 
-        // 3. Proses Log Mengajar
         const teachingFormatted: TeachingActivity[] = teaching.map((t: any) => ({
           id: `teach-${t.id}`,
           name: t.name,
@@ -78,33 +73,25 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user }) => {
         }));
         setTeachingData(teachingFormatted);
 
-        // 4. Proses Log Absensi (Gabungkan User + Log Masuk + Log Izin)
         const dailyAttendance: DailyAttendance[] = teachers.map((teacher) => {
-          // Cari log absen (bisa ada 2 log: IN dan OUT)
           const teacherLogs = attendance.filter((log: any) => log.nip === teacher.NIP);
           const logIn = teacherLogs.find((log: any) => log.type === 'IN');
           const logOut = teacherLogs.find((log: any) => log.type === 'OUT');
           
-          // Cari log izin
           const leaveLog = leaves.find((l: any) => l.nip === teacher.NIP);
 
-          // Tentukan Status
           let status: 'HADIR' | 'IZIN' | 'SAKIT' | 'BELUM HADIR' = 'BELUM HADIR';
           if (logIn) status = 'HADIR';
           else if (leaveLog) status = leaveLog.status === 'Sakit' ? 'SAKIT' : 'IZIN';
 
-          // --- REKAP BULANAN REAL ---
-          // Kita hapus simulasi random. 
-          // Karena backend saat ini hanya mengirim data hari ini, 
-          // kita hitung 1 jika HADIR hari ini, 0 jika tidak.
           const actualCount = status === 'HADIR' ? 1 : 0;
 
           return {
             id: teacher.NIP,
             name: teacher.Nama || teacher.Username,
             nip: teacher.NIP,
-            timeIn: logIn ? new Date(logIn.timestamp).toLocaleTimeString('id-ID', {hour: '2-digit', minute:'2-digit'}) : null,
-            timeOut: logOut ? new Date(logOut.timestamp).toLocaleTimeString('id-ID', {hour: '2-digit', minute:'2-digit'}) : null,
+            timeIn: logIn ? new Date(logIn.timestamp).toLocaleTimeString('id-ID', {hour: '2-digit', minute:'2-digit'}).replace('.', ':') : null,
+            timeOut: logOut ? new Date(logOut.timestamp).toLocaleTimeString('id-ID', {hour: '2-digit', minute:'2-digit'}).replace('.', ':') : null,
             status: status,
             photoUrl: logIn ? logIn.photo : null,
             monthlyAttendance: actualCount 
@@ -132,7 +119,6 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user }) => {
     };
   }, []);
 
-  // Logic Sorting untuk Tab Presensi Hari Ini
   const filteredAttendance = attendanceData
     .filter(item => 
       item.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
@@ -153,14 +139,12 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user }) => {
       return a.name.localeCompare(b.name);
     });
 
-  // Logic Sorting untuk Tab Rekap Bulanan (Ranking kehadiran tertinggi)
   const rankedAttendance = [...attendanceData]
     .filter(item => 
       item.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
       item.nip.includes(searchQuery)
     )
     .sort((a, b) => (b.monthlyAttendance || 0) - (a.monthlyAttendance || 0));
-
 
   const filteredTeaching = teachingData.filter(item => 
     item.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -217,9 +201,8 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user }) => {
 
   const handleCloseModal = () => setSelectedTeacher(null);
 
-  // --- RENDER HELPERS UNTUK PROGRESS BAR ---
   const renderProgressBar = (presentCount: number) => {
-    const target = 20; // Target hari kerja
+    const target = 20; 
     const percentage = Math.min((presentCount / target) * 100, 100);
     
     let colorClass = 'bg-red-500';
@@ -248,7 +231,6 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user }) => {
     <div className="flex-1 pb-24 overflow-y-auto bg-slate-950">
       <Header title="Admin Dashboard" />
 
-      {/* Stats Section */}
       <div className="px-6 mb-8">
         <div className="grid grid-cols-2 gap-4">
           <div className="p-5 rounded-[2rem] bg-indigo-600/10 border border-indigo-500/20 relative overflow-hidden group">
@@ -265,7 +247,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user }) => {
               <span className="text-3xl font-black text-white">{isLoading ? '-' : stats.present}</span>
               <span className="text-slate-500 text-xs font-bold">/ {isLoading ? '-' : stats.total}</span>
             </div>
-            <p className="text-[10px] text-slate-500 font-bold mt-1 uppercase tracking-tight">Guru Telah Hadir</p>
+            <p className="text-[10px] text-slate-500 font-bold mt-1 uppercase tracking-tight">Pegawai Hadir</p>
           </div>
 
           <div className="p-5 rounded-[2rem] bg-amber-600/10 border border-amber-500/20 relative overflow-hidden group">
@@ -284,7 +266,6 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user }) => {
         </div>
       </div>
 
-      {/* Control Area: Search & Tabs */}
       <div className="px-6 space-y-4 sticky top-[80px] z-30 bg-slate-950/80 backdrop-blur-md pb-4">
         <div className="flex items-center justify-between">
            <span className="text-[10px] text-slate-500 font-mono">
@@ -305,7 +286,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user }) => {
           </div>
           <input 
             type="text"
-            placeholder="Cari Nama Guru atau NIP..."
+            placeholder="Cari Nama atau NIP..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="w-full pl-11 pr-4 py-4 bg-slate-900/50 border border-white/10 rounded-2xl text-white text-sm outline-none focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-500/50 transition-all placeholder-slate-600"
@@ -337,7 +318,6 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user }) => {
         </div>
       </div>
 
-      {/* Main Content List Area */}
       <div className="px-6 space-y-3 mt-2">
         {isLoading ? (
           <div className="flex flex-col items-center justify-center py-20 text-center space-y-4">
@@ -346,63 +326,70 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user }) => {
           </div>
         ) : (
           <>
-            {/* --- TAB 1: PRESENSI HARIAN --- */}
             {activeTab === 'attendance' && (
               filteredAttendance.length > 0 ? (
-                filteredAttendance.map((item) => (
-                  <div 
-                    key={item.id} 
-                    onClick={() => setSelectedTeacher(item)}
-                    className="p-4 bg-slate-900/40 border border-white/5 rounded-3xl hover:bg-slate-900/60 transition-all group border-l-4 border-l-transparent hover:border-l-indigo-500 cursor-pointer active:scale-[0.98]"
-                  >
-                    <div className="flex justify-between items-start mb-4">
-                      <div className="flex items-center gap-3">
-                        <div>
-                          <h4 className="text-sm font-bold text-white group-hover:text-indigo-300 transition-colors leading-tight">{item.name}</h4>
-                          <div className="flex items-center gap-2 mt-1">
-                            <span className="text-[10px] text-slate-500 font-mono">NIP: {item.nip}</span>
+                filteredAttendance.map((item) => {
+                  const isLate = item.status === 'HADIR' && item.timeIn && item.timeIn > LATE_THRESHOLD;
+                  
+                  return (
+                    <div 
+                      key={item.id} 
+                      onClick={() => setSelectedTeacher(item)}
+                      className="p-4 bg-slate-900/40 border border-white/5 rounded-3xl hover:bg-slate-900/60 transition-all group border-l-4 border-l-transparent hover:border-l-indigo-500 cursor-pointer active:scale-[0.98]"
+                    >
+                      <div className="flex justify-between items-start mb-4">
+                        <div className="flex items-center gap-3">
+                          <div>
+                            <h4 className="text-sm font-bold text-white group-hover:text-indigo-300 transition-colors leading-tight">{item.name}</h4>
+                            <div className="flex items-center gap-2 mt-1">
+                              <span className="text-[10px] text-slate-500 font-mono">NIP: {item.nip}</span>
+                            </div>
+                          </div>
+                        </div>
+                        <div className={`px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-wider border ${getStatusColor(item.status)}`}>
+                          {item.status}
+                        </div>
+                      </div>
+                      
+                      <div className={`flex items-center justify-between p-3 rounded-2xl border ${isLate ? 'bg-red-500/5 border-red-500/20' : 'bg-slate-950/50 border-white/5'}`}>
+                        <div className="flex items-center gap-2">
+                          <div className={`p-1.5 rounded-lg ${isLate ? 'bg-red-500/20 text-red-500 animate-pulse' : 'bg-emerald-500/10 text-emerald-500'}`}>
+                            <Clock size={14} />
+                          </div>
+                          <div className="flex flex-col">
+                            <span className="text-[8px] text-slate-500 font-black uppercase">Masuk</span>
+                            <div className="flex items-center gap-1.5">
+                                <span className={`text-xs font-mono font-bold ${isLate ? 'text-red-400' : 'text-white'}`}>{item.timeIn || '--:--'}</span>
+                                {isLate && (
+                                    <span className="text-[8px] px-1.5 py-0.5 bg-red-500 text-white rounded-md font-black shadow-lg shadow-red-500/20">TELAT</span>
+                                )}
+                            </div>
+                          </div>
+                        </div>
+                        
+                        <div className="h-6 w-px bg-white/5" />
+                        
+                        <div className="flex items-center gap-2">
+                          <div className="p-1.5 bg-indigo-500/10 rounded-lg text-indigo-500">
+                            <Clock size={14} />
+                          </div>
+                          <div className="flex flex-col text-right">
+                            <span className="text-[8px] text-slate-500 font-black uppercase">Pulang</span>
+                            <span className="text-xs text-white font-mono font-bold">{item.timeOut || '--:--'}</span>
                           </div>
                         </div>
                       </div>
-                      <div className={`px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-wider border ${getStatusColor(item.status)}`}>
-                        {item.status}
-                      </div>
                     </div>
-                    
-                    <div className="flex items-center justify-between p-3 bg-slate-950/50 rounded-2xl border border-white/5">
-                      <div className="flex items-center gap-2">
-                        <div className="p-1.5 bg-emerald-500/10 rounded-lg text-emerald-500">
-                          <Clock size={14} />
-                        </div>
-                        <div className="flex flex-col">
-                          <span className="text-[8px] text-slate-500 font-black uppercase">Masuk</span>
-                          <span className="text-xs text-white font-mono font-bold">{item.timeIn || '--:--'}</span>
-                        </div>
-                      </div>
-                      
-                      <div className="h-6 w-px bg-white/5" />
-                      
-                      <div className="flex items-center gap-2">
-                        <div className="p-1.5 bg-indigo-500/10 rounded-lg text-indigo-500">
-                          <Clock size={14} />
-                        </div>
-                        <div className="flex flex-col text-right">
-                          <span className="text-[8px] text-slate-500 font-black uppercase">Pulang</span>
-                          <span className="text-xs text-white font-mono font-bold">{item.timeOut || '--:--'}</span>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                ))
+                  );
+                })
               ) : (
                 <div className="flex flex-col items-center justify-center py-20 text-center space-y-4 opacity-40">
                   <div className="p-6 bg-slate-900 rounded-full"><UserMinus size={48} /></div>
-                  <p className="text-slate-500 text-sm font-medium tracking-wide uppercase">Data guru tidak ditemukan</p>
+                  <p className="text-slate-500 text-sm font-medium tracking-wide uppercase">Data tidak ditemukan</p>
                 </div>
               )
             )}
 
-            {/* --- TAB 2: JADWAL MENGAJAR --- */}
             {activeTab === 'teaching' && (
               filteredTeaching.length > 0 ? (
                 filteredTeaching.map((item) => {
@@ -481,7 +468,6 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user }) => {
               )
             )}
 
-            {/* --- TAB 3: REKAP BULANAN --- */}
             {activeTab === 'recap' && (
               rankedAttendance.length > 0 ? (
                 rankedAttendance.map((item, index) => (
@@ -519,7 +505,6 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user }) => {
         )}
       </div>
 
-      {/* Detail Modal */}
       {selectedTeacher && (
         <div className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center px-0 sm:px-4">
           <div 
@@ -527,7 +512,6 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user }) => {
             onClick={handleCloseModal} 
           />
           <div className="relative w-full max-w-md bg-slate-900 rounded-t-[2.5rem] sm:rounded-[2.5rem] overflow-hidden border-t border-x sm:border border-white/10 shadow-2xl animate-in slide-in-from-bottom-10 sm:zoom-in duration-300">
-            {/* Modal Header */}
             <div className="px-6 pt-8 pb-4 flex justify-between items-start relative">
                <div className="flex items-center gap-4">
                   <div className="w-16 h-16 rounded-2xl p-1 bg-gradient-to-tr from-indigo-500 to-purple-500 shadow-xl shadow-indigo-500/20 overflow-hidden">
@@ -556,9 +540,19 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user }) => {
                </button>
             </div>
 
-            {/* Modal Content Scrollable Area */}
             <div className="px-6 pb-12 max-h-[70vh] overflow-y-auto space-y-6 pt-4">
-               {/* Daily Status Card */}
+               {selectedTeacher.status === 'HADIR' && selectedTeacher.timeIn && selectedTeacher.timeIn > LATE_THRESHOLD && (
+                  <div className="bg-red-500/10 border border-red-500/20 p-4 rounded-2xl flex items-center gap-3">
+                     <div className="p-2 bg-red-500 rounded-lg text-white">
+                        <AlertTriangle size={20} />
+                     </div>
+                     <div className="flex-1">
+                        <p className="text-xs text-red-400 font-black uppercase tracking-wider">Keterangan Kedisiplinan</p>
+                        <p className="text-xs text-slate-400 leading-tight mt-0.5">Pegawai ini melakukan presensi masuk melebihi batas jam kerja (07:15).</p>
+                     </div>
+                  </div>
+               )}
+
                <div className="bg-slate-950/50 rounded-3xl border border-white/5 p-5 space-y-4">
                   <div className="flex justify-between items-center pb-3 border-b border-white/5">
                     <span className="text-[10px] text-slate-500 font-black uppercase tracking-widest">Presensi Hari Ini</span>
@@ -571,10 +565,10 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user }) => {
                     <div className="space-y-1">
                       <span className="text-[9px] text-slate-500 font-black uppercase">Jam Masuk</span>
                       <div className="flex items-center gap-2">
-                        <div className="p-1.5 bg-emerald-500/10 rounded-lg text-emerald-500">
+                        <div className={`p-1.5 rounded-lg ${selectedTeacher.status === 'HADIR' && selectedTeacher.timeIn && selectedTeacher.timeIn > LATE_THRESHOLD ? 'bg-red-500/10 text-red-500' : 'bg-emerald-500/10 text-emerald-500'}`}>
                           <Clock size={14} />
                         </div>
-                        <span className="text-sm text-white font-bold">{selectedTeacher.timeIn || '--:--'}</span>
+                        <span className={`text-sm font-bold ${selectedTeacher.status === 'HADIR' && selectedTeacher.timeIn && selectedTeacher.timeIn > LATE_THRESHOLD ? 'text-red-400' : 'text-white'}`}>{selectedTeacher.timeIn || '--:--'}</span>
                       </div>
                     </div>
                     <div className="space-y-1">
@@ -596,7 +590,6 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user }) => {
                   </div>
                </div>
 
-               {/* Monthly Progress in Modal */}
                <div className="bg-slate-900/40 rounded-3xl border border-white/5 p-5">
                  <span className="text-[10px] text-slate-500 font-black uppercase tracking-widest block mb-4">Performa Bulan Ini</span>
                  {renderProgressBar(selectedTeacher.monthlyAttendance || 0)}
@@ -606,7 +599,6 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user }) => {
         </div>
       )}
       
-      {/* Bottom Info */}
       <div className="mt-8 text-center px-10 pb-10">
         <p className="text-[10px] text-slate-600 font-bold uppercase tracking-widest leading-relaxed">
           Menampilkan data presensi harian secara real-time berdasarkan koordinat GPS dan bukti foto.

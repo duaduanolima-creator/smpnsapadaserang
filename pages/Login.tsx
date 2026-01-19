@@ -29,40 +29,35 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
     setErrorMessage(null);
     
     try {
-      // 1. Ambil data terbaru dari Sheet
       const sheetUsers = await fetchUsersFromSheet();
-      console.log("Data Users:", sheetUsers); // Cek console untuk debugging
-
       const inputUser = username.trim();
       const inputPass = password.trim();
-      const targetRole = loginMode.toLowerCase();
 
-      // 2. Cari user berdasarkan Username & Password saja (Tanpa cek role dulu)
       const foundAccount = sheetUsers.find(u => {
         const dbUser = String(u.Username || '').trim();
         const dbPass = String(u.Password || '').trim();
-        
-        // Username tidak case-sensitive, Password case-sensitive
         return dbUser.toLowerCase() === inputUser.toLowerCase() && dbPass === inputPass;
       });
 
       if (foundAccount) {
-        // 3. Jika akun ketemu, baru validasi Role
         const dbRoleRaw = String(foundAccount.Role || '');
         const dbRole = dbRoleRaw.toLowerCase();
         
-        // Logika fleksibel: "Guru PAI" valid untuk login "Guru", "Administrator" valid untuk "Admin"
-        const isRoleValid = dbRole.includes(targetRole);
+        // LOGIKA FLEKSIBEL: 
+        // 1. Jika pilih tab Admin -> harus ada kata 'admin' di role-nya.
+        // 2. Jika pilih tab Guru -> BOLEH siapa saja asal BUKAN admin (TU, OB, Penjaga, dll masuk sini).
+        const isRoleValid = loginMode === 'Admin' 
+          ? dbRole.includes('admin') 
+          : !dbRole.includes('admin');
 
         if (isRoleValid) {
-          // --- LOGIN SUKSES ---
           localStorage.setItem('last_username', username);
           
           const appUser: User = {
             id: foundAccount.NIP || Math.random().toString(36).substr(2, 9),
             name: foundAccount.Nama || foundAccount.Username,
             nip: foundAccount.NIP || '-',
-            role: loginMode, // Set role sesuai mode login (Guru/Admin)
+            role: loginMode,
             avatar: foundAccount.Avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(foundAccount.Nama || 'User')}&background=random`,
             school: foundAccount.Sekolah || 'SMPN 1 Padarincang',
             employmentStatus: foundAccount.Status || '-'
@@ -74,12 +69,11 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
           }, 800);
 
         } else {
-          // --- GAGAL: SALAH ROLE ---
-          setErrorMessage(`Login Gagal: Akun ditemukan, tetapi akses ditolak. Di sistem status Anda "${dbRoleRaw}", bukan "${loginMode}". Silakan pindah ke tab ${dbRoleRaw.includes('admin') ? 'Admin' : 'Guru'}.`);
+          const suggestion = dbRole.includes('admin') ? 'Admin' : 'Guru';
+          setErrorMessage(`Akses ditolak. Status Anda di sistem adalah "${dbRoleRaw}". Silakan gunakan tab "Login ${suggestion}".`);
           setIsLoading(false);
         }
       } else {
-        // --- GAGAL: SALAH PASSWORD / USERNAME ---
         setErrorMessage("Username atau Kata Sandi salah. Silakan coba lagi.");
         setIsLoading(false);
       }
@@ -103,7 +97,7 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
               className="w-full h-full object-contain drop-shadow-[0_0_20px_rgba(79,70,229,0.4)]" 
             />
         </div>
-        <h1 className="text-2xl font-bold text-white tracking-tight">E-Absensi Guru</h1>
+        <h1 className="text-2xl font-bold text-white tracking-tight">E-Absensi Pegawai</h1>
         <p className="text-slate-400 text-sm mt-2">SMPN 1 Padarincang</p>
       </div>
 
@@ -139,7 +133,7 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
           <input
             type="text"
             className="w-full pl-11 pr-4 py-4 bg-slate-900/50 border border-slate-800 rounded-xl focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500 outline-none transition-all text-white placeholder-slate-500"
-            placeholder={loginMode === 'Guru' ? "Username Guru" : "Username Admin"}
+            placeholder={loginMode === 'Guru' ? "Username Pegawai" : "Username Admin"}
             value={username}
             onChange={(e) => setUsername(e.target.value)}
             required
@@ -177,7 +171,7 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
           ) : (
             <>
               <LogIn size={18} />
-              Masuk sebagai {loginMode}
+              Masuk sebagai {loginMode === 'Guru' ? 'Pegawai' : 'Admin'}
             </>
           )}
         </button>
@@ -191,4 +185,3 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
 };
 
 export default Login;
-    
