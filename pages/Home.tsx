@@ -18,7 +18,7 @@ const Home: React.FC<HomeProps> = ({ user }) => {
   // Status Global Aplikasi
   const [status, setStatus] = useState<'IDLE' | 'PRESENT' | 'OUT'>('IDLE');
   
-  // Status Local Device
+  // Status Local Device (Device Lock)
   const [deviceLock, setDeviceLock] = useState<{in: boolean, out: boolean}>({in: false, out: false});
   
   const [showTeachingModal, setShowTeachingModal] = useState(false);
@@ -50,11 +50,11 @@ const Home: React.FC<HomeProps> = ({ user }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // DAFTAR KELAS BARU SESUAI PERMINTAAN
+  // DAFTAR KELAS DIPERBAHARUI (A sampai G)
   const roomOptions = [
-    'VII - A', 'VII - B', 'VII - C', 'VII - D', 'VII - E', 'VII - F', 'VII - G', 'VII - H',
-    'VIII - A', 'VIII - B', 'VIII - C', 'VIII - D', 'VIII - E', 'VIII - F', 'VIII - G', 'VIII - H',
-    'IX - A', 'IX - B', 'IX - C', 'IX - D', 'IX - E', 'IX - F', 'IX - G', 'IX - H'
+    'VII - A', 'VII - B', 'VII - C', 'VII - D', 'VII - E', 'VII - F', 'VII - G',
+    'VIII - A', 'VIII - B', 'VIII - C', 'VIII - D', 'VIII - E', 'VIII - F', 'VIII - G',
+    'IX - A', 'IX - B', 'IX - C', 'IX - D', 'IX - E', 'IX - F', 'IX - G'
   ];
 
   const getDeviceLockKey = () => {
@@ -90,7 +90,7 @@ const Home: React.FC<HomeProps> = ({ user }) => {
   };
 
   const pulangSchedule = useMemo(() => {
-    const day = currentTime.getDay();
+    const day = currentTime.getDay(); // 0 = Minggu, 5 = Jumat
     let targetH = 14;
     let targetM = 45;
     if (day === 5) { targetH = 11; targetM = 0; } 
@@ -186,11 +186,11 @@ const Home: React.FC<HomeProps> = ({ user }) => {
           const dist = calculateDistance(coords.lat, coords.lng, SCHOOL_LAT, SCHOOL_LNG);
           setDistance(dist);
           if (dist > ALLOWED_RADIUS_METERS) {
-            setErrors(prev => ({...prev, location: `Radius diluar jangkauan (${Math.round(dist)}m).`}));
+            setErrors(prev => ({...prev, location: `Jarak Anda (${Math.round(dist)}m) di luar radius sekolah.`}));
           }
           setGpsLoading(false);
         },
-        (error) => { setGpsLoading(false); setErrors(prev => ({...prev, location: "Gagal mendapatkan GPS."})); },
+        (error) => { setGpsLoading(false); setErrors(prev => ({...prev, location: "GPS tidak aktif."})); },
         { enableHighAccuracy: true }
       );
     }
@@ -206,7 +206,7 @@ const Home: React.FC<HomeProps> = ({ user }) => {
       if (videoRef.current) videoRef.current.srcObject = stream;
     } catch (err) {
       setIsCameraActive(false);
-      setErrors(prev => ({...prev, photo: "Kamera tidak dapat diakses."}));
+      setErrors(prev => ({...prev, photo: "Kamera error."}));
     }
   };
 
@@ -258,6 +258,7 @@ const Home: React.FC<HomeProps> = ({ user }) => {
     if (!location) newErrors.location = "Wajib GPS aktif.";
     if (distance !== null && distance > ALLOWED_RADIUS_METERS) newErrors.location = `Terlalu jauh (${Math.round(distance)}m).`;
     if (Object.keys(newErrors).length > 0) { setErrors(newErrors); return; }
+    
     setIsSubmitting(true);
     const payload: SubmissionPayload = {
       action: 'ATTENDANCE',
@@ -269,17 +270,18 @@ const Home: React.FC<HomeProps> = ({ user }) => {
     if (success) {
       if (attendanceType === 'IN') setStatus('PRESENT'); else setStatus('OUT');
       if (attendanceType) updateDeviceLock(attendanceType as 'IN' | 'OUT');
-      alert(`Berhasil Simpan!`);
+      alert(`Berhasil mengirim laporan presensi!`);
       closeAttendanceModal();
-    } else alert("Gagal kirim data.");
+    } else alert("Gagal mengirim data. Periksa koneksi.");
   };
 
   const handleSubmitTeaching = async () => {
     const newErrors: Record<string, string> = {};
-    if (!startTime || !endTime) newErrors.startTime = "Waktu wajib isi.";
+    if (!startTime || !endTime) newErrors.startTime = "Waktu mengajar wajib isi.";
     if (startTime >= endTime) newErrors.endTime = "Jam selesai tidak valid.";
-    if (!photo) newErrors.photo = "Wajib foto bukti.";
+    if (!photo) newErrors.photo = "Wajib lampirkan foto bukti mengajar.";
     if (Object.keys(newErrors).length > 0) { setErrors(newErrors); return; }
+    
     setIsSubmitting(true);
     const payload: SubmissionPayload = {
       action: 'TEACHING',
@@ -288,14 +290,15 @@ const Home: React.FC<HomeProps> = ({ user }) => {
     };
     const success = await submitToGoogleSheets(payload);
     setIsSubmitting(false);
-    if (success) { alert(`Jurnal Disimpan!`); closeTeachingModal(); } else alert("Gagal kirim.");
+    if (success) { alert(`Jurnal Mengajar Disimpan!`); closeTeachingModal(); } else alert("Gagal kirim.");
   };
 
   const handleSubmitLeave = async () => {
     const newErrors: Record<string, string> = {};
-    if (!leaveStartDate || !leaveEndDate) newErrors.leaveStartDate = "Pilih tanggal.";
+    if (!leaveStartDate || !leaveEndDate) newErrors.leaveStartDate = "Pilih rentang tanggal.";
     if (leaveReason.trim().length < 10) newErrors.leaveReason = "Alasan minimal 10 karakter.";
     if (Object.keys(newErrors).length > 0) { setErrors(newErrors); return; }
+    
     setIsSubmitting(true);
     const payload: SubmissionPayload = {
       action: 'LEAVE',
@@ -304,17 +307,18 @@ const Home: React.FC<HomeProps> = ({ user }) => {
     };
     const success = await submitToGoogleSheets(payload);
     setIsSubmitting(false);
-    if (success) { alert(`Pengajuan Berhasil!`); closeLeaveModal(); } else alert("Gagal.");
+    if (success) { alert(`Pengajuan Berhasil Dikirim!`); closeLeaveModal(); } else alert("Gagal.");
   };
 
   const ErrorMsg = ({ name }: { name: string }) => errors[name] ? (
-    <p className="text-[10px] text-red-500 font-bold mt-1 flex items-center gap-1 animate-in fade-in slide-in-from-top-1"><AlertCircle size={10} /> {errors[name]}</p>
+    <p className="text-[10px] text-red-500 font-bold mt-1 flex items-center gap-1"><AlertCircle size={10} /> {errors[name]}</p>
   ) : null;
 
   return (
     <div className="flex-1 pb-24 overflow-y-auto">
       <Header title="Dashboard" />
       
+      {/* Kartu Ucapan dengan Foto Profil */}
       <div className="px-6 mb-6">
         <div className="p-6 rounded-2xl glass overflow-hidden relative border-indigo-500/20">
           <div className="flex items-center gap-4 relative z-10">
@@ -325,6 +329,9 @@ const Home: React.FC<HomeProps> = ({ user }) => {
                     <div className="flex items-center gap-2 text-indigo-400 bg-indigo-500/10 px-3 py-1 rounded-full border border-indigo-500/20">
                         <span className="w-2 h-2 rounded-full bg-indigo-400 animate-pulse"></span>
                         <span className="text-[10px] font-semibold uppercase">{user.role}</span>
+                    </div>
+                    <div className="text-[10px] font-mono text-slate-500 bg-slate-800/50 px-3 py-1 rounded-full border border-white/5">
+                        {user.nip}
                     </div>
                 </div>
             </div>
@@ -386,7 +393,7 @@ const Home: React.FC<HomeProps> = ({ user }) => {
       {showAttendanceModal && (
         <div className="fixed inset-0 z-50 flex items-start justify-center px-4 py-6 overflow-y-auto">
           <div className="fixed inset-0 bg-slate-950/90 backdrop-blur-md" onClick={closeAttendanceModal} />
-          <div className="relative w-full max-w-md bg-slate-900 rounded-[2.5rem] p-6 border border-white/10 shadow-2xl my-auto">
+          <div className="relative w-full max-w-md bg-slate-900 rounded-[2.5rem] p-6 border border-white/10 shadow-2xl my-auto animate-in zoom-in-95 duration-200">
             <div className="flex justify-between items-center mb-6">
               <h3 className="text-xl font-bold text-white">Absen {attendanceType === 'IN' ? 'Masuk' : 'Pulang'}</h3>
               <button onClick={closeAttendanceModal} className="p-2 bg-slate-800 rounded-full text-slate-400"><X size={20}/></button>
@@ -413,7 +420,7 @@ const Home: React.FC<HomeProps> = ({ user }) => {
                   <>
                     <video ref={videoRef} autoPlay playsInline muted className="w-full h-full object-cover scale-x-[-1]" />
                     {isCameraActive && (
-                      <button onClick={capturePhoto} className="absolute bottom-6 left-1/2 -translate-x-1/2 w-16 h-16 rounded-full bg-white p-1 border-4 border-slate-900 shadow-2xl flex items-center justify-center">
+                      <button onClick={capturePhoto} className="absolute bottom-6 left-1/2 -translate-x-1/2 w-16 h-16 rounded-full bg-white p-1 border-4 border-slate-900 shadow-2xl flex items-center justify-center active:scale-90 transition-transform">
                         <div className="w-full h-full bg-slate-100 rounded-full" />
                       </button>
                     )}
@@ -422,7 +429,7 @@ const Home: React.FC<HomeProps> = ({ user }) => {
                 <canvas ref={canvasRef} className="hidden" />
               </div>
               <div className="text-center"><ErrorMsg name="photo" /></div>
-              <button onClick={handleSubmitAttendance} disabled={isSubmitting} className="w-full py-5 text-white font-bold rounded-2xl bg-indigo-600 hover:bg-indigo-700 shadow-indigo-600/30">
+              <button onClick={handleSubmitAttendance} disabled={isSubmitting} className="w-full py-5 text-white font-bold rounded-2xl bg-indigo-600 hover:bg-indigo-700 shadow-indigo-600/30 active:scale-[0.98] transition-all">
                 {isSubmitting ? <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin mx-auto" /> : 'Kirim Laporan Presensi'}
               </button>
             </div>
@@ -433,7 +440,7 @@ const Home: React.FC<HomeProps> = ({ user }) => {
       {showTeachingModal && (
         <div className="fixed inset-0 z-50 flex items-start justify-center px-4 py-6 overflow-y-auto">
             <div className="fixed inset-0 bg-slate-950/90 backdrop-blur-md" onClick={closeTeachingModal} />
-            <div className="relative w-full max-w-md bg-slate-900 rounded-[2.5rem] p-6 border border-white/10 shadow-2xl my-auto">
+            <div className="relative w-full max-w-md bg-slate-900 rounded-[2.5rem] p-6 border border-white/10 shadow-2xl my-auto animate-in zoom-in-95 duration-200">
                 <div className="flex justify-between items-center mb-6">
                     <h3 className="text-xl font-bold text-white flex items-center gap-2"><GraduationCap className="text-amber-500" /> Sesi Mengajar</h3>
                     <button onClick={closeTeachingModal} className="p-2 bg-slate-800 rounded-full text-slate-400"><X size={20}/></button>
@@ -442,23 +449,23 @@ const Home: React.FC<HomeProps> = ({ user }) => {
                     <div className="grid grid-cols-2 gap-3">
                         <div>
                             <label className="text-[10px] font-bold text-indigo-400 uppercase mb-2 block">Jam Mulai</label>
-                            <input type="time" value={startTime} onChange={(e) => setStartTime(e.target.value)} className="w-full p-4 bg-slate-800 border border-slate-700 rounded-xl text-white text-xs" />
+                            <input type="time" value={startTime} onChange={(e) => setStartTime(e.target.value)} className="w-full p-4 bg-slate-800 border border-slate-700 rounded-xl text-white text-xs outline-none" />
                         </div>
                         <div>
                             <label className="text-[10px] font-bold text-indigo-400 uppercase mb-2 block">Jam Selesai</label>
-                            <input type="time" value={endTime} onChange={(e) => setEndTime(e.target.value)} className="w-full p-4 bg-slate-800 border border-slate-700 rounded-xl text-white text-xs" />
+                            <input type="time" value={endTime} onChange={(e) => setEndTime(e.target.value)} className="w-full p-4 bg-slate-800 border border-slate-700 rounded-xl text-white text-xs outline-none" />
                         </div>
                     </div>
                     <div className="grid grid-cols-2 gap-3">
                       <div>
                           <label className="text-[10px] font-bold text-indigo-400 uppercase mb-2 block">Ruang / Kelas</label>
-                          <select value={selectedClass} onChange={(e) => setSelectedClass(e.target.value)} className="w-full p-4 bg-slate-800 border border-slate-700 rounded-xl text-white text-[10px]">
+                          <select value={selectedClass} onChange={(e) => setSelectedClass(e.target.value)} className="w-full p-4 bg-slate-800 border border-slate-700 rounded-xl text-white text-[10px] outline-none">
                               {roomOptions.map(room => <option key={room} value={room}>{room}</option>)}
                           </select>
                       </div>
                       <div>
                           <label className="text-[10px] font-bold text-indigo-400 uppercase mb-2 block">Mata Pelajaran</label>
-                          <select value={selectedSubject} onChange={(e) => setSelectedSubject(e.target.value)} className="w-full p-4 bg-slate-800 border border-slate-700 rounded-xl text-white text-[10px]">
+                          <select value={selectedSubject} onChange={(e) => setSelectedSubject(e.target.value)} className="w-full p-4 bg-slate-800 border border-slate-700 rounded-xl text-white text-[10px] outline-none">
                               {['PAI', 'PKN', 'B. INDONESIA', 'B. INGGRIS', 'IPA', 'IPS', 'PJOK', 'SBD', 'TIK', 'MATEMATIKA', 'KASERANGAN', 'BTQ', 'PRAKARYA', 'BP/BK'].map(m => <option key={m}>{m}</option>)}
                           </select>
                       </div>
@@ -478,8 +485,8 @@ const Home: React.FC<HomeProps> = ({ user }) => {
                         <canvas ref={canvasRef} className="hidden" />
                     </div>
                     <ErrorMsg name="photo" />
-                    <button onClick={handleSubmitTeaching} disabled={isSubmitting} className="w-full py-5 bg-amber-500 text-slate-950 font-black rounded-2xl shadow-lg">
-                        {isSubmitting ? <div className="w-5 h-5 border-2 border-slate-900/30 border-t-slate-950 rounded-full animate-spin mx-auto" /> : 'Konfirmasi Sesi'}
+                    <button onClick={handleSubmitTeaching} disabled={isSubmitting} className="w-full py-5 bg-amber-500 text-slate-950 font-black rounded-2xl shadow-lg active:scale-[0.98] transition-all">
+                        {isSubmitting ? <div className="w-5 h-5 border-2 border-slate-900/30 border-t-slate-950 rounded-full animate-spin mx-auto" /> : 'Konfirmasi Sesi Mengajar'}
                     </button>
                 </div>
             </div>
@@ -489,7 +496,7 @@ const Home: React.FC<HomeProps> = ({ user }) => {
       {showLeaveModal && (
         <div className="fixed inset-0 z-50 flex items-start justify-center px-4 py-6 overflow-y-auto">
             <div className="fixed inset-0 bg-slate-950/90 backdrop-blur-md" onClick={closeLeaveModal} />
-            <div className="relative w-full max-w-md bg-slate-900 rounded-[2rem] p-6 border border-white/10 shadow-2xl my-auto">
+            <div className="relative w-full max-w-md bg-slate-900 rounded-[2rem] p-6 border border-white/10 shadow-2xl my-auto animate-in zoom-in-95 duration-200">
                 <div className="flex justify-between items-center mb-6">
                     <h3 className="text-xl font-bold text-white flex items-center gap-3"><div className="p-2 bg-blue-500 rounded-lg"><Coffee size={20} className="text-white"/></div> Pengajuan Izin</h3>
                     <button onClick={closeLeaveModal} className="p-2 bg-slate-800 rounded-full text-slate-400"><X size={20}/></button>
@@ -501,12 +508,12 @@ const Home: React.FC<HomeProps> = ({ user }) => {
                         ))}
                     </div>
                     <div className="grid grid-cols-2 gap-3">
-                        <input type="date" value={leaveStartDate} onChange={(e) => setLeaveStartDate(e.target.value)} className="w-full p-4 bg-slate-800 border border-slate-700 rounded-xl text-white text-xs" />
-                        <input type="date" value={leaveEndDate} onChange={(e) => setLeaveEndDate(e.target.value)} className="w-full p-4 bg-slate-800 border border-slate-700 rounded-xl text-white text-xs" />
+                        <input type="date" value={leaveStartDate} onChange={(e) => setLeaveStartDate(e.target.value)} className="w-full p-4 bg-slate-800 border border-slate-700 rounded-xl text-white text-xs outline-none" />
+                        <input type="date" value={leaveEndDate} onChange={(e) => setLeaveEndDate(e.target.value)} className="w-full p-4 bg-slate-800 border border-slate-700 rounded-xl text-white text-xs outline-none" />
                     </div>
-                    <textarea value={leaveReason} onChange={(e) => setLeaveReason(e.target.value)} placeholder="Detail alasan..." className="w-full p-4 bg-slate-800/50 border border-white/10 rounded-xl text-white text-xs h-28 resize-none" />
+                    <textarea value={leaveReason} onChange={(e) => setLeaveReason(e.target.value)} placeholder="Tuliskan detail alasan..." className="w-full p-4 bg-slate-800/50 border border-white/10 rounded-xl text-white text-xs h-28 resize-none outline-none" />
                     <ErrorMsg name="leaveReason" />
-                    <button onClick={handleSubmitLeave} disabled={isSubmitting} className="w-full py-5 bg-indigo-600 text-white font-bold rounded-2xl">
+                    <button onClick={handleSubmitLeave} disabled={isSubmitting} className="w-full py-5 bg-indigo-600 text-white font-bold rounded-2xl active:scale-[0.98] transition-all">
                         {isSubmitting ? <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin mx-auto" /> : 'Kirim Pengajuan'}
                     </button>
                 </div>
